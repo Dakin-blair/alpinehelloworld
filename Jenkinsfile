@@ -11,6 +11,7 @@ pipeline {
         PRODUCTION      = "${ID_DOCKER}-production"
         STAGING_PORT    = '81'
         PRODUCTION_PORT = '80'
+        HOST_IP         = '172.17.0.1'
     }
 
     stages {
@@ -35,7 +36,7 @@ pipeline {
         stage('Test image') {
             agent any
             steps {
-                sh 'curl -sf http://172.17.0.1:$TEST_PORT | grep -q "Hello world"'
+                sh 'curl -sf http://$HOST_IP:$TEST_PORT | grep -q "Hello world"'
             }
         }
 
@@ -71,6 +72,17 @@ pipeline {
             }
         }
 
+        stage('Test staging') {
+            when { expression { env.GIT_BRANCH == 'origin/master' } }
+            agent any
+            steps {
+                sh '''
+                    sleep 5
+                    curl -sf http://$HOST_IP:$STAGING_PORT | grep -q "Hello world"
+                '''
+            }
+        }
+
         stage('Deploy in production') {
             when { expression { env.GIT_BRANCH == 'origin/master' } }
             agent any
@@ -80,6 +92,26 @@ pipeline {
                     docker run -d --name $PRODUCTION --restart unless-stopped -e PORT=$INTERNAL_PORT -p $PRODUCTION_PORT:$INTERNAL_PORT $ID_DOCKER/$IMAGE_NAME:$IMAGE_TAG
                 '''
             }
+        }
+
+        stage('Test production') {
+            when { expression { env.GIT_BRANCH == 'origin/master' } }
+            agent any
+            steps {
+                sh '''
+                    sleep 5
+                    curl -sf http://$HOST_IP:$PRODUCTION_PORT | grep -q "Hello world"
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            slackSend(color: 'good', message: "SUCCÈS : ${env.JOB_NAME} #${env.BUILD_NUMBER} - ${env.BUILD_URL}")
+        }
+        failure {
+            slackSend(color: 'danger', message: "ÉCHEC : ${env.JOB_NAME} #${env.BUILD_NUMBER} - ${env.BUILD_URL}")
         }
     }
 }
