@@ -1,3 +1,5 @@
+@Library('shared-library') _
+
 pipeline {
     agent none
 
@@ -107,11 +109,10 @@ pipeline {
     }
 
     post {
-        success {
-            slackSend(color: 'good', message: "SUCCÈS : ${env.JOB_NAME} #${env.BUILD_NUMBER} - ${env.BUILD_URL}")
-        }
-        failure {
-            slackSend(color: 'danger', message: "ÉCHEC : ${env.JOB_NAME} #${env.BUILD_NUMBER} - ${env.BUILD_URL}")
+        always {
+            script {
+                slackNotifier currentBuild.currentResult
+            }
         }
     }
 }
